@@ -1,7 +1,9 @@
-name = "moments-cloudflare"
+# Pages 部署配置
+#
+# 现在由 GitHub 推代码触发自动部署，wrangler.toml 仅用于本地直传调试。
+# Service Binding 已移除 —— functions/api/[[path]].ts 改为直连后端 URL，
+# 避免 Dashboard 漏配绑定导致前端静默拿不到数据。
+
+name = "moments-gallery"
 pages_build_output_dir = "./.output/public"
 compatibility_date = "2024-04-03"
-
-[[services]]
-binding = "BACKEND"
-service = "moments-backend"

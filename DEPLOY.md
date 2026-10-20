@@ -1,150 +1,200 @@
-# Moments 图库部署指南
+# Moments 图库 · 部署指南
 
-基于 [Moretti815/moments](https://github.com/Moretti815/moments)，把 Twitter 导出的图片自动归档成朋友圈时间线。
-
-**无信用卡方案**：不使用 R2，图片放 Pages 静态目录 `/media/`，元数据放 D1。全程免费。
+Twitter 图片归档成朋友圈时间线。**GitHub LFS 存图 + Cloudflare Pages 自动部署**，全程免费、无需信用卡。
 
 ## 架构
 
 ```
 D:\Devops\TwitterPhoto\<作者>\日期\推文ID\文件
-        │  scripts\import-data.ps1（PowerShell，绕过代理）
-        ├──→ frontend\public\media\<作者>\日期\推文ID\文件   媒体文件
-        └──→ POST /api/archive/import                       D1 元数据
-                        ↓
-        Cloudflare Pages（前端 + 媒体，一次部署）
-                        ↓
-                    你的域名
+        │  scripts\import-data.ps1（每天定时）
+        │
+        ├──→ frontend\public\media\...\     图片，走 Git LFS 提交
+        │              ↓
+        │         git push
+        │              ↓
+        │    GitHub 仓库
+        │              ↓ 自动触发
+        │    Cloudflare Pages（构建 → 静态托管 /media/）
+        │
+        └──→ POST /api/archive/import       元数据，写 D1
+                       ↓
+                  后端 Worker（读 D1）
+                       ↑
+              Pages Functions 代理 /api/*
 ```
 
-## 资源状态
+**关键点**：图片不在 Cloudflare 上传，而是推到 GitHub，Pages 拉代码时一并带上。Cloudflare 只负责构建和托管。
+
+## 资源
 
 | 项 | 值 |
 |---|---|
 | Cloudflare 账号 | `ityourknow@163.com` / `3cf8bd9abc6ac865fdb361b4b4decece` |
 | D1 数据库 | `moments-db` / `42674d6d-e9e9-4543-8a36-0f45ec195d8b` |
 | 后端 Worker | `https://moments-backend.ityourknow.workers.dev` |
+| Pages 项目 | `moments-gallery` |
+| GitHub 仓库 | `OneSignNotion/moments-gallery`（待创建） |
 | admin 密码 | `Still@2026Gallery` |
-| Pages 项目 | `moments-gallery`（待创建） |
-| R2 | **不使用**（免绑卡） |
 
-## 已删除的功能
+## 首次配置（需要你操作）
 
-按需求精简为纯图片浏览：评论、友链、豆瓣、网易云、Bilibili、注册、发布动态、后台管理。
+### 1. 在 GitHub 建仓库
 
-保留：时间线、标签筛选、日历检索、灯箱、深色模式、点赞、系统设置。
+访问 https://github.com/new
 
-## Pages 配额核对
+- 仓库名：`moments-gallery`
+- **Public**（重要：私有仓库的 Pages 要付费）
+- 不要勾选 README / .gitignore / License
 
-| 项 | 你的数据 | Pages 免费限制 | 占比 |
-|---|---|---|---|
-| 文件数 | 908 | 20,000 | 4.5% |
-| 最大单文件 | 15 MB | 25 MiB | 60% |
-| 总容量 | 304 MB | 无限制 | — |
-| 带宽 | — | 无限 | — |
-
-## 常用命令
-
-```powershell
-# 导入全部（先只导一天试试）
-.\scripts\import-data.ps1 -Author 4KAestheticHQ
-.\scripts\import-data.ps1 -Author 4KAestheticHQ -AllDates
-
-# 只导指定日期
-.\scripts\import-data.ps1 -Author 4KAestheticHQ -Date 2026-10-20
-
-# 限量试跑
-.\scripts\import-data.ps1 -Author 4KAestheticHQ -Limit 10
-
-# 查导入统计
-Invoke-RestMethod -Uri "$api/api/archive/stats" -Method POST -Body '{}' `
-  -Headers @{ "X-API-TOKEN" = $token } -ContentType "application/json"
-```
-
-## 部署
-
-```powershell
-cd frontend
-npm run build
-npx wrangler pages deploy .output/public --project-name moments-gallery
-```
-
-首次需要先建项目：
-
-```powershell
-npx wrangler pages project create moments-gallery --production-branch main
-```
-
-## 定时任务
-
-`scripts\daily-sync.bat` 会在每天定时执行：导入 → 构建 → 部署。
+### 2. 推送代码
 
 ```bash
-schtasks /create /tn "MomentsSync" ^
-  /tr "C:\...\moments-src\scripts\daily-sync.bat" /sc daily /st 03:00
+cd C:\Users\Still\WorkBuddy\2026-10-20-16-51-06\moments-src
+git push -u origin main
 ```
+
+会要求登录 GitHub（Personal Access Token 或浏览器授权）。
+
+### 3. Cloudflare Pages 接 GitHub
+
+Dashboard → Workers 和 Pages → `moments-gallery` → Settings → Builds & deployments
+
+| 配置项 | 值 |
+|---|---|
+| 框架预设 | Nuxt.js |
+| 构建命令 | `cd frontend && npm install && npm run build` |
+| 构建输出目录 | `frontend/.output/public` |
+| 根目录 | 留空（仓库根） |
+
+**环境变量**（Settings → Environment variables）：
+
+```
+NUXT_PUBLIC_API_BASE = https://moments-backend.ityourknow.workers.dev
+```
+
+保存后点 "Retry deployment"，Pages 会拉代码并构建，图片自动上线。
+
+## 日常使用
+
+### 手动同步
+
+```powershell
+cd C:\Users\Still\WorkBuddy\2026-10-20-16-51-06\moments-src
+
+# 导入一天并推送
+.\scripts\import-data.ps1 -Author 4KAestheticHQ
+
+# 导入全部并推送
+.\scripts\import-data.ps1 -Author 4KAestheticHQ -AllDates
+
+# 只导文件不推送（调试用）
+.\scripts\import-data.ps1 -Author 4KAestheticHQ -Limit 5 -SkipPush
+```
+
+脚本会：复制文件 → 写 D1 → `git add` → `git commit` → `git push`，Pages 自动部署。
+
+### 定时任务
+
+```powershell
+$root = "C:\Users\Still\WorkBuddy\2026-10-20-16-51-06\moments-src"
+$action = New-ScheduledTaskAction -Execute "$root\scripts\daily-sync.bat"
+$trigger = New-ScheduledTaskTrigger -Daily -At 3am
+Register-ScheduledTask -TaskName "MomentsSync" -Action $action -Trigger $trigger `
+  -Description "每日同步 Twitter 归档到图库"
+```
+
+删除：
+
+```powershell
+Unregister-ScheduledTask -TaskName "MomentsSync" -Confirm:$false
+```
+
+## 配额核对
+
+| 项 | 你的数据 | 上限 | 占比 |
+|---|---|---|---|
+| LFS 存储 | 304 MB | 10 GB | 3% |
+| LFS 带宽 | 按需 | 10 GB/月 | 低 |
+| Pages 文件数 | 908 | 20,000 | 4.5% |
+| Pages 最大单文件 | 15 MB | 25 MiB | 60% |
+| Pages 流量 | — | 无限 | — |
+
+**注意**：Pages 每次构建会重新拉整个仓库，LFS 流量随之消耗。构建越频繁消耗越大。脚本在无新文件时会跳过提交，所以不会触发无谓构建。
 
 ## 踩过的坑
 
-### 1. 换账号后必须清缓存
+### 1. 当天数据不显示（重要）
+
+**症状**：当天导入的动态，后端能查到但页面空白。
+
+**原因**：`listMemos` 对未登录访客过滤 `datetime(createdAt) <= datetime('now')`。原本把归档时间写成当天 `12:00:00Z`，而当前才上午，这条就成了「未来」被隐藏。
+
+**修复**：`archive.ts` 加了 `clampToNow()`，写入时把时间压到当前时间以内。数据库里的存量记录用这条 SQL 修正：
+
+```bash
+npx wrangler d1 execute moments-db --remote \
+  --command="UPDATE Memo SET createdAt = datetime('now') WHERE datetime(createdAt) > datetime('now')"
+```
+
+### 2. Service Binding 不可靠
+
+原设计用 Pages Functions + `BACKEND` Service Binding 转发到后端。这个绑定要在 Dashboard 手动配，漏了就静默失败（前端返回 0 条但不报错）。
+
+**修复**：`functions/api/[[path]].ts` 改成直接 `fetch` 后端 URL，硬编码在代码里，不依赖 Dashboard 配置。
+
+### 3. 换 Cloudflare 账号要清缓存
 
 ```bash
 rm -rf .wrangler backend/.wrangler frontend/.wrangler
 ```
 
-否则 wrangler 沿用旧 account id，报 `code: 10000 Authentication error`。
+否则沿用旧 account id，报 `code: 10000 Authentication error`。
 
-### 2. 沙箱/系统 DNS 被污染
+### 4. 本机 DNS 被污染
 
-`nslookup moments-backend.ityourknow.workers.dev` 返回 `199.16.158.104`（Twitter IP 段），不是 Cloudflare。
+`nslookup moments-backend.ityourknow.workers.dev` 返回 `199.16.158.104`（Twitter IP 段）。
 
-**表现为**：curl exit 56、502 Bad Gateway、Node `getaddrinfo ENOTFOUND`。
+**症状**：curl exit 56 / 502、Node `getaddrinfo ENOTFOUND`。
 
-**解决**：用 PowerShell 设 `$env:NO_PROXY="*"` 并清掉代理环境变量。`scripts\import-data.ps1` 已内置。
+**解决**：脚本里设 `$env:NO_PROXY="*"` 并清代理环境变量（`import-data.ps1` 已内置）。这只影响脚本调用，不影响浏览器访问。
 
-### 3. .ps1 文件必须是 UTF-8 with BOM
+### 5. .ps1 必须是 UTF-8 with BOM
 
-Windows PowerShell 5.1 默认按 GBK 读文件，中文会乱码导致「缺少 Catch 或 Finally 块」语法错误。
+Windows PowerShell 5.1 默认按 GBK 读，中文乱码报「缺少 Catch 或 Finally 块」。
 
-转换：`python scripts\fix-encoding.py scripts\import-data.ps1`
-
-### 4. Pages 部署命令要带项目名
-
-```
-X [ERROR] The Pages project "xxx" does not exist.
+```bash
+python scripts\fix-encoding.py scripts\import-data.ps1
 ```
 
-先 `npx wrangler pages project create <name> --production-branch main`。
+保险起见，`import-data.ps1` 里的提示文字全用英文。
 
-### 5. 从 Bash 调 PowerShell 会被拦
+### 6. Pages 私有仓库要付费
 
-`Command blocked for security: Invoking PowerShell from Bash`。改用 PowerShell 工具直接执行。
+GitHub 仓库必须是 **Public**，否则 Pages 无法使用。
 
 ## 数据映射
 
 ```
 本地                                       moments
-D:\...\2026-10-20\2112213296166445469\     Memo.createdAt = 2026-10-20 12:00Z
+D:\...\2026-10-20\2112213296166445469\     Memo.createdAt = 2026-10-20
   └─ HVAWyL5WQAAMp4D.jpg                   Memo.tags = "4KAestheticHQ,"
                                            Memo.imgs = /media/4KAestheticHQ/2026-10-20/2112.../HVAWyL5WQAAMp4D.jpg
-                                           frontend\public\media\4KAestheticHQ\2026-10-20\2112...\
-Archive 表                                 (author, tweetId) 唯一约束，防重复导入
+                                           git: frontend/public/media/4KAestheticHQ/2026-10-20/2112.../
+Archive 表                                 (author, tweetId) 唯一约束
 ```
 
 一条推文 = 一条动态。
 
-## 幂等机制
+## 幂等
 
-1. **文件级**：文件已存在且大小一致 → 跳过复制
-2. **推文级**：`Archive` 表 `(author, tweetId)` 唯一约束 → 跳过写库
+1. **文件级**：目标文件已存在就跳过复制
+2. **推文级**：`Archive` 表 `(author, tweetId)` 唯一约束
 
-定时任务可安全每天重复运行。
+定时任务可安全重复运行。
 
 ## 已知限制
 
-**mp4 视频不显示**。`UploadImagePreview.vue` 只渲染 `<img>` 标签，遇到 mp4 会显示破图。
-
-解决需要改前端，加视频标签判断。这是下一步要做的。
+**mp4 不显示**。`UploadImagePreview.vue` 只渲染 `<img>`，遇到视频显示破图。你有 45 个 mp4，需改组件加视频标签。
 
 ## 新增作者
 
@@ -152,4 +202,25 @@ Archive 表                                 (author, tweetId) 唯一约束，防
 .\scripts\import-data.ps1 -Author Sn0opyLove85186 -AllDates
 ```
 
-前端会自动出现标签切换按钮。
+前端会自动出现标签切换。
+
+## 目录结构
+
+```
+moments-src/
+├── backend/              Workers 后端（Hono + D1）
+│   ├── src/handlers/     archive / memo / file / sysConfig / tag / user
+│   ├── schema.sql        含 Archive 幂等表
+│   └── wrangler.toml     无 R2
+├── frontend/             Nuxt 3 前端
+│   ├── components/       Memo / Header / MobileNav / UploadImagePreview
+│   ├── functions/api/    Pages Function 代理到后端
+│   ├── public/media/     ★ 图片（走 LFS）
+│   └── wrangler.toml
+├── scripts/
+│   ├── import-data.ps1   导入 + git push（主脚本）
+│   ├── daily-sync.bat    定时任务入口
+│   └── fix-encoding.py   .ps1 转 UTF-8 BOM
+├── data/token.txt        JWT（已 gitignore）
+└── DEPLOY.md
+```

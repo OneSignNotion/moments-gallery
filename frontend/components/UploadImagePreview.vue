@@ -30,9 +30,30 @@
 
   <template v-else-if="props.imgConfigs && props.imgConfigs.length">
     <MyFancyBox :style="gridStyle">
+      <!-- 视频：原生 video 标签，浏览器会显示封面帧 -->
       <div
-        v-for="(imgConfig, z) in props.imgConfigs"
-        :key="z"
+        v-for="(imgConfig, z) in videoConfigs"
+        :key="'v' + z"
+        class="video-cell"
+        :class="
+          images.length === 1
+            ? 'full-cover-image-single'
+            : 'full-cover-image-mult'
+        "
+      >
+        <video
+          class="rounded cursor-pointer"
+          :src="imgConfig.url"
+          :poster="imgConfig.thumbUrl"
+          preload="metadata"
+          controls
+          playsinline
+        ></video>
+      </div>
+      <!-- 图片 -->
+      <div
+        v-for="(imgConfig, z) in imageConfigs"
+        :key="'i' + z"
         :href="imgConfig.url"
         :class="
           images.length === 1
@@ -58,12 +79,27 @@ interface ImgConfig {
   thumbUrl: string;
 }
 
+const VIDEO_EXT = [".mp4", ".mov", ".m4v", ".webm", ".mkv"];
+
+const isVideo = (url: string) => {
+  const clean = (url || "").split("?")[0].toLowerCase();
+  return VIDEO_EXT.some((ext) => clean.endsWith(ext));
+};
+
 const sysConfig = useState<SysConfigVO>("sysConfig");
 const route = useRoute();
 const el = ref(null);
 const props = defineProps<{ imgs?: string; imgConfigs?: ImgConfig[] }>();
 const emit = defineEmits(["removeImage", "dragImage"]);
 const images = ref<string[]>((props.imgs || "").split(",").filter(Boolean));
+
+// 视频和图片分开渲染 —— 视频用<video>，图片继续走 Fancybox 灯箱
+const videoConfigs = computed<ImgConfig[]>(() =>
+  (props.imgConfigs || []).filter((c) => isVideo(c.url))
+);
+const imageConfigs = computed<ImgConfig[]>(() =>
+  (props.imgConfigs || []).filter((c) => !isVideo(c.url))
+);
 
 watch(props, () => {
   images.value = (props.imgs || "").split(",").filter(Boolean);
@@ -113,6 +149,18 @@ const gridStyle = computed(() => {
 </script>
 
 <style scoped>
+.video-cell {
+  width: 100%;
+
+  > video {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    background: #000;
+    display: block;
+  }
+}
+
 .full-cover-image-mult {
   width: 100%;
   max-height: 300px;
