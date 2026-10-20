@@ -6,13 +6,17 @@
 
 | 环节 | 状态 |
 |---|---|
-| Cloudflare 登录 | 已完成 |
-| D1 数据库 | 已创建 `moments-db`，6 张表 + 10 索引就绪 |
+| Cloudflare 登录 | 已完成 — `ityourknow@163.com`，Account `3cf8bd9abc6ac865fdb361b4b4decece` |
+| D1 数据库 | 已创建 `moments-db`，6 张表 + 10 索引就绪，`42674d6d-e9e9-4543-8a36-0f45ec195d8b` |
 | Archive 幂等表 | 已建 |
 | 3 个导入接口 | 已写完，类型检查零错误 |
 | `sync.py` 导入脚本 | 已写完，扫描验证通过 |
+| JWT 密钥 | 已设为 Worker secret |
+| **后端 Worker** | **已上线** `https://moments-backend.ityourknow.workers.dev` |
 | **R2 存储桶** | **待开通 —— 唯一阻塞项** |
 | Pages 前端 | 依赖已装，待部署 |
+
+> 当前部署的 Worker 临时不含 R2 绑定（因 R2 未开通）。开通后重新 `wrangler deploy` 即可带上绑定。
 
 ## 第一步：开通 R2（必须手动）
 
@@ -29,26 +33,36 @@ npx wrangler r2 bucket create moments-storage
 
 ## 第二步：部署后端
 
-先设 JWT 密钥（走 secret，不进 git）：
+⚠️ **换过账号的话，必须先清缓存**，否则 wrangler 会用旧账号的 ID：
+
+```bash
+rm -rf .wrangler backend/.wrangler frontend/.wrangler
+```
+
+JWT 密钥（走 secret，不进 git）：
 
 ```bash
 cd moments-src/backend
 npx wrangler secret put JWT_SECRET
 ```
 
-粘贴这串随机值进去（或自己生成一串更长的）：
+粘贴这串随机值（或自己生成更长的）：
 ```
 SZ8vliOMi5bdXcvwsk_yUcU6ladrB7A7CIPM7bF8WHEpKxWkTxuSStzaLIF-k03M
 ```
 
-然后部署：
+部署：
 
 ```bash
 npx wrangler deploy
 ```
 
 记下输出的 Worker 地址，形如：
-`https://moments-backend.xxxxx.workers.dev`
+`https://moments-backend.xxx.workers.dev`
+
+> **如果 R2 还没开通**，部署会因 `wrangler.toml` 里的 R2 绑定而失败。
+> 临时解法：注释掉 `[[r2_buckets]]` 整段再部署，Worker 能上去，
+> 但图片相关接口会报错。开通 R2 后删掉注释重新部署即可。
 
 ## 第三步：拿登录 Token
 
@@ -147,6 +161,8 @@ Archive 表                              记录 (author, tweetId) 保证不重�
 | 现象 | 处理 |
 |---|---|
 | `code: 10042 Please enable R2` | 去 Dashboard 开通 R2 |
+| `code: 10000 Authentication error` 且 URL 里是陌生 account id | 换过账号，缓存没清：`rm -rf .wrangler backend/.wrangler` |
+| 本地 curl 报 502 / exit 56 | 沙箱代理不通。改用本机代理 `--proxy socks5h://127.0.0.1:1080`，或在沙箱外执行 |
 | 导入报 401 | Token 过期或密码改过，重新登录拿 Token |
 | 图片 404 | 检查 R2 里文件是否存在，`imgs` 路径是否以 `/r2/` 开头 |
 | 视频不显示 | `UploadImagePreview.vue` 只渲染 img，视频需走 `ext.video` 字段 |

@@ -10,3 +10,4 @@ backend/wrangler.toml.dev
 /logs/
 __pycache__/
 .wrangler/
+data/
