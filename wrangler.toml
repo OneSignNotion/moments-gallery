@@ -1,0 +1,12 @@
+# Cloudflare Pages 构建配置
+#
+# 放在仓库根目录：Cloudflare Workers Builds 的 deploy command
+# 在仓库根执行 wrangler，配置必须在这里才能被找到。
+#
+# 注意：pages_build_output_dir 相对本文件所在目录，即仓库根。
+# 但我们的产物在 frontend/.output/public，所以 deploy command
+# 必须显式传路径，不能依赖这个字段。
+
+name = "moments-gallery"
+pages_build_output_dir = "frontend/.output/public"
+compatibility_date = "2024-04-03"

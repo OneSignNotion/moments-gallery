@@ -26,3 +26,4 @@ node_modules/
 Thumbs.db
 
 # 注意：frontend/public/media/ 是要提交的（走 LFS）
+node_modules/

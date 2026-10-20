@@ -1,0 +1,10 @@
+{
+  "name": "moments-gallery",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler pages deploy frontend/.output/public --project-name moments-gallery --branch main"
+  },
+  "devDependencies": {
+    "wrangler": "4.151.2"
+  }
+}
