@@ -55,24 +55,26 @@ git push -u origin main
 
 会要求登录 GitHub（Personal Access Token 或浏览器授权）。
 
-### 3. Cloudflare Pages 接 GitHub
+### 3. Cloudflare 接 GitHub
 
 Dashboard → Workers 和 Pages → `moments-gallery` → Settings → Builds & deployments
 
 | 配置项 | 值 |
 |---|---|
-| 框架预设 | Nuxt.js |
-| 构建命令 | `cd frontend && npm install && npm run build` |
-| 构建输出目录 | `frontend/.output/public` |
-| 根目录 | 留空（仓库根） |
+| Build command | `cd frontend && npm install && npm run build` |
+| Deploy command | `npx wrangler pages deploy frontend/.output/public --project-name moments-gallery --branch main --commit-dirty=true` |
+| Path | `/` |
+| Enable Preview builds | 关闭（省 LFS 流量） |
 
-**环境变量**（Settings → Environment variables）：
+⚠️ **Build command 里没有 `npm install` 根目录依赖**，deploy command 用 `npx wrangler` 会现场下载最新版。新版 wrangler 的认证行为有变化，会报 `Authentication error [code: 10000]`。
+
+根目录已放 `package.json` 固定 `wrangler@4.151.2`，**deploy command 需改为**：
 
 ```
-NUXT_PUBLIC_API_BASE = https://moments-backend.ityourknow.workers.dev
+npm install && npx wrangler pages deploy frontend/.output/public --project-name moments-gallery --branch main --commit-dirty=true
 ```
 
-保存后点 "Retry deployment"，Pages 会拉代码并构建，图片自动上线。
+⚠️ **`wrangler.toml` 必须在仓库根目录**。Workers Builds 的 deploy command 在仓库根执行 wrangler，配置放在 `frontend/` 下会找不到，导致认证失败。
 
 ## 日常使用
 
@@ -171,6 +173,29 @@ python scripts\fix-encoding.py scripts\import-data.ps1
 ### 6. Pages 私有仓库要付费
 
 GitHub 仓库必须是 **Public**，否则 Pages 无法使用。
+
+### 7. Cloudflare Workers Builds 认证失败
+
+**症状**：构建成功（日志有 `✓ Build complete`），但部署阶段报：
+
+```
+X [ERROR] /accounts/xxx/pages/projects/moments-gallery failed.
+  Authentication error [code: 10000]
+```
+
+**根因**：deploy command 用 `npx wrangler` 时，构建环境没有预装 wrangler，会现场下载**最新版**。新版 CLI 的认证行为变了，配合自动生成的 build token 就失败。
+
+**修复**：根目录建 `package.json` 固定版本，deploy command 前加 `npm install`：
+
+```json
+{ "devDependencies": { "wrangler": "4.151.2" } }
+```
+
+```
+npm install && npx wrangler pages deploy frontend/.output/public --project-name moments-gallery
+```
+
+**另一个坑**：`wrangler.toml` 必须在**仓库根目录**。Workers Builds 在根目录执行 wrangler，配置放子目录会找不到，走不同代码路径同样报认证错。
 
 ## 数据映射
 
