@@ -3,3 +3,10 @@ backend/test-db.js
 backend/wrangler.toml.dev
 /frontend/dist
 /.claude
+
+# 本地归档脚本 —— 不要提交
+/scripts/sync.local.cmd
+/data/manifest.json
+/logs/
+__pycache__/
+.wrangler/

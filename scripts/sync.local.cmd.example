@@ -1,0 +1,13 @@
+REM 复制这个文件为 sync.local.cmd，填入真实值。
+REM sync.local.cmd 已加入 .gitignore，不会被提交。
+
+REM 后端 Worker 地址（部署后 wrangler 会打印）
+set MOMENTS_API=https://moments-backend.你的子域.workers.dev
+
+REM 登录后拿到的 JWT
+REM 获取方式：用 admin/admin123 调用登录接口
+REM   curl -X POST %MOMENTS_API%/api/user/login ^
+REM     -H "Content-Type: application/json" ^
+REM     -d "{\"username\":\"admin\",\"password\":\"你的密码\"}"
+REM 返回 data.token 就是它
+set MOMENTS_TOKEN=在这里填JWT

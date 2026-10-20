@@ -62,6 +62,18 @@ CREATE TABLE IF NOT EXISTS Friend (
     updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+-- Archive 表 (自动归档导入记录，保证幂等)
+CREATE TABLE IF NOT EXISTS Archive (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    author TEXT NOT NULL,
+    tweetId TEXT NOT NULL,
+    date TEXT NOT NULL,
+    memoId INTEGER,
+    itemCount INTEGER DEFAULT 0 NOT NULL,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    UNIQUE(author, tweetId)
+);
+
 -- SysConfig 表 (系统配置)
 CREATE TABLE IF NOT EXISTS SysConfig (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +92,8 @@ CREATE INDEX IF NOT EXISTS idx_memo_showType ON Memo(showType);
 CREATE INDEX IF NOT EXISTS idx_comment_memoId ON Comment(memoId);
 CREATE INDEX IF NOT EXISTS idx_comment_createdAt ON Comment(createdAt);
 CREATE INDEX IF NOT EXISTS idx_sysconfig_name ON SysConfig(name);
+CREATE INDEX IF NOT EXISTS idx_archive_author_date ON Archive(author, date);
+CREATE INDEX IF NOT EXISTS idx_archive_tweetId ON Archive(tweetId);
 
 -- 插入默认管理员用户 (用户名: admin, 密码: admin123)
 -- bcrypt hash for 'admin123': $2a$10$6ep6URHMaj5tnrfa0/Cccu0U5/7BStrpLDUp2.oFJ9ujyrL3P5vlO

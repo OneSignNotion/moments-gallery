@@ -6,6 +6,7 @@ import * as userHandler from './handlers/user';
 import * as memoHandler from './handlers/memo';
 import * as commentHandler from './handlers/comment';
 import * as fileHandler from './handlers/file';
+import * as archiveHandler from './handlers/archive';
 import * as friendHandler from './handlers/friend';
 import * as sysConfigHandler from './handlers/sysConfig';
 import * as tagHandler from './handlers/tag';
@@ -154,6 +155,22 @@ app.post('/api/file/upload', async (c) => {
 app.get('/r2/*', async (c) => {
   const key = c.req.path.replace('/r2/', '');
   return fileHandler.getFile(c.req.raw, c.env, key);
+});
+
+// Archive routes (自动归档导入)
+app.post('/api/archive/import', async (c) => {
+  const ctx: AppContext = { user: c.get('user') };
+  return archiveHandler.importArchive(c.req.raw, c.env, ctx);
+});
+
+app.post('/api/archive/upload', async (c) => {
+  const ctx: AppContext = { user: c.get('user') };
+  return archiveHandler.uploadArchiveFile(c.req.raw, c.env, ctx);
+});
+
+app.post('/api/archive/stats', async (c) => {
+  const ctx: AppContext = { user: c.get('user') };
+  return archiveHandler.archiveStats(c.req.raw, c.env, ctx);
 });
 
 // Friend routes
