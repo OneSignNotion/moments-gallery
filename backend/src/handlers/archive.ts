@@ -7,6 +7,10 @@ import { successResp, failResp } from '../utils/response';
  * 由本地定时任务调用，把 Twitter 导出的 日期/推文ID/媒体 目录
  * 批量灌成「动态」。通过 Archive 表做幂等，重复调用不会重复导入。
  *
+ * 图片文件本身不走这个接口 —— 它们由 Pages 静态托管，
+ * 本地脚本负责把文件放进 frontend/public/media/ 后重新部署。
+ * 这里只写 D1 元数据，imgs 存 /media/ 开头的路径。
+ *
  * POST /api/archive/import
  * body: {
  *   author: string,        // 作者用户名
@@ -15,13 +19,10 @@ import { successResp, failResp } from '../utils/response';
  *     tweetId: string,
  *     createdAt?: string,  // ISO 时间，默认用 date 的当天 12:00
  *     content?: string,
- *     imgs: string[],      // 已在 R2 中的路径，形如 archive/<author>/<date>/<tweetId>/<file>
+ *     imgs: string[],      // 形如 media/<author>/<date>/<tweetId>/<file>
  *     tags?: string[],
  *   }]
  * }
- *
- * POST /api/archive/upload  —— 单文件上传（multipart，字段名 file，附加字段 key）
- *   用于把本地媒体文件传到 R2，返回可写入 imgs 的路径。
  */
 
 export async function importArchive(request: Request, env: Env, ctx: AppContext): Promise<Response> {
@@ -81,7 +82,9 @@ export async function importArchive(request: Request, env: Env, ctx: AppContext)
       }
 
       // 归档动态一律公开(1)，挂在当前登录用户下
-      const createdAt = t.createdAt || defaultTimeFor(date);
+      // 关键：时间不能超过当前时间，否则匿名访问会被
+      // listMemos 的 datetime(createdAt) <= datetime('now') 过滤掉
+      const createdAt = clampToNow(t.createdAt || defaultTimeFor(date), now);
       const tags = t.tags && t.tags.length ? t.tags.join(',') + ',' : null;
       const content = t.content || '';
 
@@ -124,53 +127,17 @@ function defaultTimeFor(date: string): string {
 }
 
 /**
- * 单文件上传到 R2，key 由调用方指定
- * 这样本地脚本能控制文件路径，保持 日期/推文ID/文件名 的结构
+ * 把归档时间压到当前时间以内。
+ *
+ * listMemos 对匿名访客会过滤 datetime(createdAt) <= datetime('now')，
+ * 如果当天数据被写成当天中午 12:00，而当前才上午，那条动态
+ * 对未登录访客就是「未来」而被隐藏 —— 页面会显示空白。
  */
-export async function uploadArchiveFile(request: Request, env: Env, ctx: AppContext): Promise<Response> {
-  try {
-    if (!ctx.user) {
-      return failResp(ErrorCodes.TOKEN_MISSING);
-    }
-
-    const formData = await request.formData();
-    const file = formData.get('file');
-    const key = formData.get('key');
-
-    if (!file || typeof file === 'string' || !key || typeof key === 'string') {
-      return failResp(ErrorCodes.PARAM_ERROR, '缺少 file 或 key');
-    }
-
-    const uploadFile = file as unknown as File;
-    const MAX = 50 * 1024 * 1024;
-    if (uploadFile.size > MAX) {
-      return failResp(ErrorCodes.PARAM_ERROR, `文件超过 ${MAX / 1024 / 1024}MB`);
-    }
-
-    await env.BUCKET.put(key, uploadFile.stream(), {
-      httpMetadata: { contentType: uploadFile.type || guessType(key) },
-      customMetadata: {
-        userId: String(ctx.user.id),
-        originalName: uploadFile.name,
-        uploadedAt: new Date().toISOString(),
-      },
-    });
-
-    return successResp({ key, url: `/r2/${key}`, size: uploadFile.size });
-  } catch (error) {
-    console.error('Upload archive file error:', error);
-    return failResp(ErrorCodes.FAIL, '上传失败');
-  }
-}
-
-function guessType(key: string): string {
-  const ext = key.split('.').pop()?.toLowerCase();
-  const map: Record<string, string> = {
-    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-    gif: 'image/gif', webp: 'image/webp',
-    mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
-  };
-  return map[ext || ''] || 'application/octet-stream';
+function clampToNow(iso: string, now: string): string {
+  const t = Date.parse(iso);
+  const n = Date.parse(now);
+  if (Number.isNaN(t)) return now;
+  return t > n ? now : iso;
 }
 
 /** 查询导入统计 */

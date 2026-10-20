@@ -29,7 +29,6 @@
     "vue": "latest",
     "vue-sonner": "^1.3.2"
   },
-  "packageManager": "pnpm@10.10.0",
   "devDependencies": {
     "@shikijs/markdown-it": "^1.29.2",
     "@types/grecaptcha": "^3.0.9",

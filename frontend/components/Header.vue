@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="$route.path !== '/new' && $route.path.indexOf('/edit/') < 0"
+    v-if="$route.path.indexOf('/memo/') < 0"
     class="header relative mb-14"
   >
     <div
@@ -20,15 +20,9 @@
         <span v-else-if="$route.path.indexOf('/tags/') >= 0">
           {{ route.params.tag || "话题专栏" }}
         </span>
-        <span v-else-if="$route.path === '/friend'">友情链接</span>
         <span v-else>
           <span v-if="!global.userinfo.token && $route.path === '/user/login'">
             登录
-          </span>
-          <span
-            v-else-if="!global.userinfo.token && $route.path === '/user/reg'"
-          >
-            注册
           </span>
           <span v-else>{{ props.user.nickname }} 的空间</span>
         </span>
@@ -41,16 +35,6 @@
       >
         <UIcon name="i-carbon-logout" class="w-5 h-5 cursor-pointer" />
       </NuxtLink>
-      <span
-        v-if="$route.path === '/friend' && global.userinfo.id === 1"
-        class="flex"
-      >
-        <UIcon
-          name="i-carbon-add"
-          class="w-6 h-6 cursor-pointer"
-          @click="$emit('add-friend')"
-        />
-      </span>
     </div>
 
     <div
@@ -100,12 +84,6 @@
         <path d="m19.07 4.93-1.41 1.41"></path>
       </svg>
 
-      <NuxtLink v-if="global.userinfo.token" to="/new" title="发表">
-        <UIcon
-          name="i-carbon-camera"
-          class="text-[#9fc84a] w-5 h-5 cursor-pointer"
-        />
-      </NuxtLink>
       <NuxtLink
         v-if="$route.path !== '/user/calendar' && global.userinfo.token"
         to="/user/calendar"
@@ -113,12 +91,6 @@
       >
         <UIcon
           name="i-jam-search-folder"
-          class="text-[#9fc84a] w-5 h-5 cursor-pointer"
-        />
-      </NuxtLink>
-      <NuxtLink v-if="$route.path === '/'" to="/friend" title="友情链接">
-        <UIcon
-          name="i-carbon-friendship"
           class="text-[#9fc84a] w-5 h-5 cursor-pointer"
         />
       </NuxtLink>

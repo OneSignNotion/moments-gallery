@@ -8,10 +8,7 @@ binding = "DB"
 database_name = "moments-db"
 database_id = "42674d6d-e9e9-4543-8a36-0f45ec195d8b"
 
-# R2 存储绑定
-[[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "moments-storage"
+# 图片托管在 Pages 静态目录 /media/，不使用 R2（免绑卡）
 
 # 环境变量：JWT_SECRET 走 wrangler secret put JWT_SECRET 设置，不写进文件
 [vars]

@@ -1,8 +1,7 @@
-import { Env, Memo, Comment, User, SaveMemoReq, ListMemoReq, AppContext, ErrorCodes } from '../types';
+import { Env, Memo, User, SaveMemoReq, ListMemoReq, AppContext, ErrorCodes } from '../types';
 import { successResp, failResp } from '../utils/response';
 
 type MemoUserRow = Pick<User, 'id' | 'username' | 'nickname' | 'slogan' | 'avatarUrl' | 'coverUrl'>;
-type CommentRow = Comment & { rn: number };
 
 const buildPlaceholders = (count: number) => Array.from({ length: count }, () => '?').join(', ');
 
@@ -91,32 +90,10 @@ export async function listMemos(request: Request, env: Env, ctx: AppContext): Pr
       }
     }
 
-    const memoIds = memoList.map((memo) => memo.id);
-    const commentMap = new Map<number, Comment[]>();
-    if (memoIds.length > 0) {
-      const commentRows = await env.DB.prepare(
-        `WITH ranked_comments AS (
-          SELECT
-            *,
-            ROW_NUMBER() OVER (PARTITION BY memoId ORDER BY datetime(createdAt) DESC, id DESC) AS rn
-          FROM Comment
-          WHERE memoId IN (${buildPlaceholders(memoIds.length)})
-        )
-        SELECT * FROM ranked_comments WHERE rn <= 5 ORDER BY memoId ASC, rn ASC`
-      ).bind(...memoIds).all<CommentRow>();
-
-      for (const commentRow of commentRows.results || []) {
-        const { rn: _rn, ...comment } = commentRow;
-        const memoComments = commentMap.get(comment.memoId) || [];
-        memoComments.push(comment);
-        commentMap.set(comment.memoId, memoComments);
-      }
-    }
-
     const list: Memo[] = memoList.map((memo) => ({
       ...memo,
       user: userMap.get(memo.userId),
-      comments: commentMap.get(memo.id) || [],
+      comments: [],
       imgConfigs: memo.imgs
         ? memo.imgs.split(',').filter(Boolean).map(img => ({
           url: img,
@@ -245,17 +222,6 @@ export async function removeMemo(request: Request, env: Env, ctx: AppContext, id
 
     await env.DB.prepare('DELETE FROM Memo WHERE id = ?').bind(memoId).run();
 
-    // Delete associated images from R2 if needed
-    if (memo.imgs) {
-      const imgs = memo.imgs.split(',');
-      for (const img of imgs) {
-        if (img.startsWith('/r2/')) {
-          const key = img.replace('/r2/', '');
-          await env.BUCKET.delete(key);
-        }
-      }
-    }
-
     return successResp({});
   } catch (error) {
     console.error('Remove memo error:', error);
@@ -288,11 +254,6 @@ export async function getMemo(request: Request, env: Env, ctx: AppContext, id: s
       'SELECT username, nickname, slogan, id, avatarUrl, coverUrl FROM User WHERE id = ?'
     ).bind(memo.userId).first<User>();
 
-    // Get comments
-    const comments = await env.DB.prepare(
-      'SELECT * FROM Comment WHERE memoId = ? ORDER BY createdAt DESC'
-    ).bind(memoId).all<Comment>();
-
     // Generate imgConfigs from imgs string
     const imgConfigs = memo.imgs
       ? memo.imgs.split(',').filter(Boolean).map(img => ({
@@ -304,7 +265,7 @@ export async function getMemo(request: Request, env: Env, ctx: AppContext, id: s
     return successResp({
       ...memo,
       user: user || undefined,
-      comments: comments.results || [],
+      comments: [],
       imgConfigs,
     });
   } catch (error) {
@@ -378,15 +339,8 @@ export async function removeImage(request: Request, env: Env, ctx: AppContext): 
       return failResp(ErrorCodes.PARAM_ERROR);
     }
 
-    // Check if the image URL is from R2
-    if (body.img.startsWith('/r2/')) {
-      const key = body.img.replace('/r2/', '');
-
-      // Delete from R2
-      await env.BUCKET.delete(key);
-
-      console.log(`Image deleted from R2: ${key} by user ${ctx.user.id}`);
-    }
+    // 图片托管在 Pages 静态目录，这里只做记录删除
+    console.log(`Image removed from memo: ${body.img} by user ${ctx.user.id}`);
 
     return successResp({});
   } catch (error) {

@@ -1,6 +1,6 @@
 @echo off
-REM moments 归档每日同步
-REM 由 Windows 定时任务调用；已导入的推文会自动跳过
+REM moments 归档每日同步：复制媒体 -> 写 D1 -> 构建 -> 部署 Pages
+REM 已导入的推文会自动跳过
 
 setlocal
 cd /d "%~dp0.."
@@ -11,22 +11,28 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 set STAMP=%date:~0,4%%date:~5,2%%date:~8,2%-%time:~0,2%%time:~3,2%
 set LOG=%LOG_DIR%\sync-%STAMP%.log
 
-REM 从同目录的 sync.local.cmd 读取 MOMENTS_API / MOMENTS_TOKEN
 if exist "%~dp0sync.local.cmd" call "%~dp0sync.local.cmd"
 
 if "%MOMENTS_API%"=="" (
-  echo [x] 未配置 MOMENTS_API，请先创建 scripts\sync.local.cmd >> "%LOG%"
-  echo [x] 内容示例: >> "%LOG%"
-  echo [x]   set MOMENTS_API=https://moments-backend.xxx.workers.dev >> "%LOG%"
-  echo [x]   set MOMENTS_TOKEN=你的JWT >> "%LOG%"
+  echo [x] 未配置 MOMENTS_API >> "%LOG%"
+  echo [x] 请复制 sync.local.cmd.example 为 sync.local.cmd 并填入 >> "%LOG%"
   goto :end
 )
 
 echo ==== 同步开始 %date% %time% ==== > "%LOG%"
-echo API: %MOMENTS_API% >> "%LOG%"
 
+REM 1. 复制媒体到 frontend/public/media 并写入 D1
 call "C:\Users\Still\.workbuddy\binaries\python\versions\3.13.12\python.exe" ^
   scripts\sync.py --author 4KAestheticHQ --all >> "%LOG%" 2>&1
+
+REM 2. 构建前端（媒体会随构建产物一起打包）
+echo ---- 构建前端 ---- >> "%LOG%"
+cd frontend
+call npm run build >> "%LOG%" 2>&1
+
+REM 3. 部署到 Pages
+echo ---- 部署 Pages ---- >> "%LOG%"
+call npx wrangler pages deploy .output/public --project-name moments-gallery >> "%LOG%" 2>&1
 
 echo ==== 同步结束 %date% %time% ==== >> "%LOG%"
 

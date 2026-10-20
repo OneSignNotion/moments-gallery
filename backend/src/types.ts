@@ -1,7 +1,6 @@
 // Environment bindings
 export interface Env {
   DB: D1Database;
-  BUCKET: R2Bucket;
   JWT_SECRET: string;
   CORS_ORIGIN: string;
   TURNSTILE_SECRET_KEY?: string;

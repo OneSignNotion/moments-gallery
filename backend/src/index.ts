@@ -4,14 +4,10 @@ import { Env, AppContext, User } from './types';
 import { verifyToken } from './utils/jwt';
 import * as userHandler from './handlers/user';
 import * as memoHandler from './handlers/memo';
-import * as commentHandler from './handlers/comment';
 import * as fileHandler from './handlers/file';
 import * as archiveHandler from './handlers/archive';
-import * as friendHandler from './handlers/friend';
 import * as sysConfigHandler from './handlers/sysConfig';
 import * as tagHandler from './handlers/tag';
-import * as doubanHandler from './handlers/douban';
-import * as locationHandler from './handlers/location';
 
 const app = new Hono<{ Bindings: Env; Variables: { user?: User } }>();
 
@@ -67,6 +63,7 @@ app.post('/api/user/profile', async (c) => {
 });
 
 app.post('/api/user/profile/:username', async (c) => {
+  const ctx: AppContext = { user: c.get('user') };
   const username = c.req.param('username');
   return userHandler.getProfileByUsername(c.req.raw, c.env, username);
 });
@@ -80,17 +77,6 @@ app.post('/api/user/saveProfile', async (c) => {
 app.post('/api/memo/list', async (c) => {
   const ctx: AppContext = { user: c.get('user') };
   return memoHandler.listMemos(c.req.raw, c.env, ctx);
-});
-
-app.post('/api/memo/save', async (c) => {
-  const ctx: AppContext = { user: c.get('user') };
-  return memoHandler.saveMemo(c.req.raw, c.env, ctx);
-});
-
-app.post('/api/memo/remove', async (c) => {
-  const ctx: AppContext = { user: c.get('user') };
-  const id = c.req.query('id') || '';
-  return memoHandler.removeMemo(c.req.raw, c.env, ctx, id);
 });
 
 app.post('/api/memo/get', async (c) => {
@@ -110,51 +96,8 @@ app.post('/api/memo/setPinned', async (c) => {
   return memoHandler.setPinned(c.req.raw, c.env, ctx, id);
 });
 
-app.post('/api/memo/removeImage', async (c) => {
-  const ctx: AppContext = { user: c.get('user') };
-  return memoHandler.removeImage(c.req.raw, c.env, ctx);
-});
-
 app.post('/api/memo/getFaviconAndTitle', async (c) => {
   return memoHandler.getFaviconAndTitle(c.req.raw, c.env);
-});
-
-app.post('/api/memo/getDoubanBookInfo', async (c) => {
-  const id = c.req.query('id') || '';
-  return doubanHandler.getDoubanBookInfo(c.req.raw, c.env, id);
-});
-
-app.post('/api/memo/getDoubanMovieInfo', async (c) => {
-  const id = c.req.query('id') || '';
-  return doubanHandler.getDoubanMovieInfo(c.req.raw, c.env, id);
-});
-
-app.post('/api/memo/reverseGeocode', async (c) => {
-  const ctx: AppContext = { user: c.get('user') };
-  return locationHandler.reverseGeocode(c.req.raw, c.env, ctx);
-});
-
-// Comment routes
-app.post('/api/comment/add', async (c) => {
-  const ctx: AppContext = { user: c.get('user') };
-  return commentHandler.addComment(c.req.raw, c.env, ctx);
-});
-
-app.post('/api/comment/remove', async (c) => {
-  const ctx: AppContext = { user: c.get('user') };
-  const id = c.req.query('id') || '';
-  return commentHandler.removeComment(c.req.raw, c.env, ctx, id);
-});
-
-// File routes
-app.post('/api/file/upload', async (c) => {
-  const ctx: AppContext = { user: c.get('user') };
-  return fileHandler.uploadFile(c.req.raw, c.env, ctx);
-});
-
-app.get('/r2/*', async (c) => {
-  const key = c.req.path.replace('/r2/', '');
-  return fileHandler.getFile(c.req.raw, c.env, key);
 });
 
 // Archive routes (自动归档导入)
@@ -163,33 +106,19 @@ app.post('/api/archive/import', async (c) => {
   return archiveHandler.importArchive(c.req.raw, c.env, ctx);
 });
 
-app.post('/api/archive/upload', async (c) => {
-  const ctx: AppContext = { user: c.get('user') };
-  return archiveHandler.uploadArchiveFile(c.req.raw, c.env, ctx);
-});
-
 app.post('/api/archive/stats', async (c) => {
   const ctx: AppContext = { user: c.get('user') };
   return archiveHandler.archiveStats(c.req.raw, c.env, ctx);
 });
 
-// Friend routes
-app.post('/api/friend/list', async (c) => {
-  return friendHandler.listFriends(c.req.raw, c.env);
-});
-
-app.post('/api/friend/add', async (c) => {
+// File routes
+// 图片托管在 Pages 静态目录 (/media/)，这里只保留兼容占位
+app.post('/api/file/upload', async (c) => {
   const ctx: AppContext = { user: c.get('user') };
-  return friendHandler.addFriend(c.req.raw, c.env, ctx);
+  return fileHandler.uploadFile(c.req.raw, c.env, ctx);
 });
 
-app.post('/api/friend/delete', async (c) => {
-  const ctx: AppContext = { user: c.get('user') };
-  const id = c.req.query('id') || '';
-  return friendHandler.deleteFriend(c.req.raw, c.env, ctx, id);
-});
-
-// System config routes
+// SysConfig routes (站点标题、主题等)
 app.post('/api/sysConfig/get', async (c) => {
   return sysConfigHandler.getSysConfig(c.req.raw, c.env);
 });
@@ -204,7 +133,7 @@ app.post('/api/sysConfig/save', async (c) => {
   return sysConfigHandler.saveSysConfig(c.req.raw, c.env, ctx);
 });
 
-// Tag routes
+// Tag routes (按作者筛选)
 app.post('/api/tag/list', async (c) => {
   return tagHandler.listTags(c.req.raw, c.env);
 });

@@ -165,16 +165,6 @@
                 />
                 <div>赞</div>
               </div>
-              <template v-if="sysConfig.enableComment">
-                <span class="bg-[#6b7280] h-[20px] w-[1px]"></span>
-                <div
-                  class="flex flex-row gap-1 cursor-pointer items-center px-4"
-                  @click="doComment"
-                >
-                  <UIcon name="i-octicon-comment" />
-                  <div>评论</div>
-                </div>
-              </template>
             </div>
           </div>
           <template>
@@ -260,26 +250,6 @@
               <span class="mx-1">{{ item.favCount }}位访客</span>
             </div>
           </div>
-          <div class="flex flex-col gap-1" v-if="sysConfig.enableComment">
-            <CommentBox :comment-id="0" :memo-id="item.id" />
-            <div
-              class="space-y-1"
-              :class="[item.comments && item.comments.length > 0 ? 'py-2' : '']"
-            >
-              <div
-                v-if="item.comments && item.comments.length > 0"
-                v-for="c in item.comments"
-                :key="c.id"
-                class="px-4 relative flex-col text-sm"
-              >
-                <Comment
-                  :comment="c"
-                  :memo-id="item.id"
-                  :memo-user-id="item.user.id"
-                />
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -290,7 +260,6 @@
 import type { ExtDTO, MemoVO, SysConfigVO } from "~/types";
 import { toast } from "vue-sonner";
 import { memoChangedEvent, memoReloadEvent } from "~/event";
-import Comment from "~/components/Comment.vue";
 import { useGlobalState } from "~/store";
 import { ensureMarkdownHighlighter, renderMarkdown } from "~/utils/markdown";
 
@@ -313,7 +282,6 @@ const getMemoMaxHeightStyle = () => {
   }
   return "";
 };
-const currentCommentBox = useState("currentCommentBox");
 const props = defineProps<{
   memo: MemoVO;
 }>();
@@ -349,16 +317,6 @@ const tags = computed(() => {
   }
   return tagsStr.split(",");
 });
-
-const doComment = () => {
-  const value = item.value.id + "#0";
-  if (currentCommentBox.value === value) {
-    currentCommentBox.value = "";
-  } else {
-    currentCommentBox.value = value;
-  }
-  showToolbar.value = false;
-};
 
 const doShowMore = () => {
   showMoreClicked.value = !showMoreClicked.value;
