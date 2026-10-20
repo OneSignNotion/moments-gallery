@@ -55,26 +55,44 @@ git push -u origin main
 
 会要求登录 GitHub（Personal Access Token 或浏览器授权）。
 
-### 3. Cloudflare 接 GitHub
+### 3. Cloudflare 接GitHub + API Token
 
-Dashboard → Workers 和 Pages → `moments-gallery` → Settings → Builds & deployments
+**建 API Token**（自动部署必须，自带的 build token 权限不足）：
+
+Dashboard → My Profile → API Tokens → Create Custom Token
+
+| 权限 | 级别 |
+|---|---|
+| Account → Cloudflare Pages | Edit |
+| Account → Account Settings | Read |
+| Account → Workers Scripts | Edit |
+
+Account Resources 选 **All accounts**。IP filtering 留空，TTL 留空。
+
+**填进构建配置**：项目 Settings → Builds & deployments → API token 换成新建的。
+
+**GitHub Secrets**（供 GitHub Actions 备用）：
+
+仓库 Settings → Secrets and variables → Actions → New repository secret
+
+| Name | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | 新建的 token |
+| `CLOUDFLARE_ACCOUNT_ID` | `3cf8bd9abc6ac865fdb361b4b4decece` |
+
+**构建配置**：
 
 | 配置项 | 值 |
 |---|---|
 | Build command | `cd frontend && npm install && npm run build` |
-| Deploy command | `npx wrangler pages deploy frontend/.output/public --project-name moments-gallery --branch main --commit-dirty=true` |
+| Deploy command | `npm install && npx wrangler pages deploy frontend/.output/public --project-name moments-gallery --branch main --commit-dirty=true` |
 | Path | `/` |
 | Enable Preview builds | 关闭（省 LFS 流量） |
+| API token | 换成新建的 |
 
-⚠️ **Build command 里没有 `npm install` 根目录依赖**，deploy command 用 `npx wrangler` 会现场下载最新版。新版 wrangler 的认证行为有变化，会报 `Authentication error [code: 10000]`。
+⚠️ **deploy command 里的 `npm install` 不能省**。构建环境没有预装 wrangler，会现场下载最新版，认证行为会变导致 `code: 10000`。根目录 `package.json` 固定了 `wrangler@4.151.2`，这个 `npm install` 就是把它装上。
 
-根目录已放 `package.json` 固定 `wrangler@4.151.2`，**deploy command 需改为**：
-
-```
-npm install && npx wrangler pages deploy frontend/.output/public --project-name moments-gallery --branch main --commit-dirty=true
-```
-
-⚠️ **`wrangler.toml` 必须在仓库根目录**。Workers Builds 的 deploy command 在仓库根执行 wrangler，配置放在 `frontend/` 下会找不到，导致认证失败。
+⚠️ **`wrangler.toml` 必须在仓库根目录**。Workers Builds 的 deploy command 在仓库根执行 wrangler，配置放子目录会找不到，走不同代码路径。
 
 ## 日常使用
 
@@ -183,19 +201,24 @@ X [ERROR] /accounts/xxx/pages/projects/moments-gallery failed.
   Authentication error [code: 10000]
 ```
 
-**根因**：deploy command 用 `npx wrangler` 时，构建环境没有预装 wrangler，会现场下载**最新版**。新版 CLI 的认证行为变了，配合自动生成的 build token 就失败。
-
-**修复**：根目录建 `package.json` 固定版本，deploy command 前加 `npm install`：
-
-```json
-{ "devDependencies": { "wrangler": "4.151.2" } }
-```
+日志里会有一行提示：
 
 ```
-npm install && npx wrangler pages deploy frontend/.output/public --project-name moments-gallery
+Membership roles in "xxx's Account": Contact account super admin to change your permissions.
 ```
 
-**另一个坑**：`wrangler.toml` 必须在**仓库根目录**。Workers Builds 在根目录执行 wrangler，配置放子目录会找不到，走不同代码路径同样报认证错。
+**根因**：Cloudflare 自动生成的 build token 是 **User API Token**，调 Pages API 时权限受账号成员角色限制，权限不足。
+
+**修复**：自建 API Token（Pages:Edit + Account Settings:Read + Workers Scripts:Edit），在构建配置里替换掉默认的 build token。
+
+**顺带的两个坑**（即使换了 token 也要处理）：
+
+1. deploy command 里的 `npx wrangler` 会现场下载**最新版**，新版认证行为变化 → 加 `npm install` 前置，根 `package.json` 固定版本
+2. `wrangler.toml` 必须在**仓库根目录**，否则 wrangler 找不到配置会走不同代码路径
+
+### 8. Git Provider 显示 No
+
+`wrangler pages project list` 里 Git Provider 显示 `No`，说明 Cloudflare 与 GitHub 的绑定没建立（通常是没完成 OAuth 授权），此时 push 不会触发构建。
 
 ## 数据映射
 
